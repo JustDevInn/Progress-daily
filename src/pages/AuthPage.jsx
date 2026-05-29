@@ -4,7 +4,7 @@ import { AuthForm } from '../components/auth/AuthForm';
 export function AuthPage({ auth }) {
   return (
     <AppLayout activeTab="training" onTabChange={() => {}} hideNav>
-      <div className="flex min-h-screen items-center px-4 py-8">
+      <div className="flex min-h-dvh items-start justify-center px-4 py-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] sm:items-center">
         <AuthForm
           error={auth.authError}
           firebaseConfigured={auth.firebaseConfigured}

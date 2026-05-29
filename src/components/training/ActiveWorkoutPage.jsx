@@ -17,14 +17,17 @@ export function ActiveWorkoutPage({
   onStopWorkout,
   onComplete,
 }) {
+  const initialTimer = initialDraft?.timer;
   const [showCompletion, setShowCompletion] = useState(Boolean(initialDraft?.showCompletion));
   const [confirmIncomplete, setConfirmIncomplete] = useState(false);
   const [confirmMissingWeights, setConfirmMissingWeights] = useState(false);
   const [activeExerciseId, setActiveExerciseId] = useState(initialDraft?.activeExerciseId || program.exercises[0]?.id);
   const [recoveryDraft, setRecoveryDraft] = useState(initialDraft?.recoveryDraft || null);
+  const [workoutNote, setWorkoutNote] = useState(initialDraft?.workoutNote ?? initialDraft?.recoveryDraft?.notes ?? '');
   const [startedAt] = useState(initialDraft?.startedAt || new Date().toISOString());
-  const timer = useRestTimer(initialDraft?.timer, vibrationEnabled);
+  const timer = useRestTimer(initialTimer, vibrationEnabled);
   const workout = useWorkoutSession(program, sessions, initialDraft);
+  const activeExercise = program.exercises.find((exercise) => exercise.id === activeExerciseId) || program.exercises[0];
   const incompleteSets = workout.totalSets - workout.completedSets;
   const incompleteMany = workout.completedSets > 0 && incompleteSets > Math.max(2, workout.totalSets * 0.3);
   const missingStrengthWeightSets = workout.exerciseSessions.reduce(
@@ -47,6 +50,7 @@ export function ActiveWorkoutPage({
       timer: timer.timer,
       showCompletion,
       recoveryDraft,
+      workoutNote,
     });
   }, [
     activeExerciseId,
@@ -56,6 +60,7 @@ export function ActiveWorkoutPage({
     showCompletion,
     startedAt,
     timer.timer,
+    workoutNote,
     workout.exerciseSessions,
     workout.sourceLabels,
   ]);
@@ -63,11 +68,22 @@ export function ActiveWorkoutPage({
   function handleSetComplete(exercise, setNumber, completed) {
     setActiveExerciseId(exercise.id);
     workout.updateSet(exercise.id, setNumber, { completed });
-    if (completed) timer.start(exercise.restSeconds, exercise.name);
+    if (completed) {
+      timer.start(exercise.restSeconds, exercise.name);
+    }
+  }
+
+  function startManualTimer() {
+    const seconds = activeExercise?.restSeconds || 120;
+    timer.start(seconds, activeExercise?.name || '');
+  }
+
+  function stopTimer() {
+    timer.stop();
   }
 
   function finish(recovery) {
-    onComplete(workout.buildCompletedSession(recovery));
+    onComplete(workout.buildCompletedSession({ ...recovery, notes: recovery?.notes || workoutNote }));
   }
 
   function stopWorkout() {
@@ -90,7 +106,7 @@ export function ActiveWorkoutPage({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 pb-40">
+    <div className="workout-page min-h-dvh bg-zinc-950">
       <header className="border-b border-zinc-800 px-4 pb-4 pt-5">
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="icon" onClick={onCancel} aria-label="Terug">
@@ -106,16 +122,7 @@ export function ActiveWorkoutPage({
           </Button>
         </div>
       </header>
-      <RestTimer
-        timer={timer.timer}
-        progress={timer.progress}
-        onPause={timer.pause}
-        onResume={timer.resume}
-        onReset={timer.reset}
-        onAdjust={timer.adjust}
-        onStop={timer.stop}
-      />
-      <div className="space-y-4 px-4 py-4">
+      <div className="space-y-3 px-4 py-3">
         {program.exercises.map((exercise) => {
           const exerciseSession = workout.exerciseSessions.find((item) => item.exerciseId === exercise.id);
           if (!exerciseSession) return null;
@@ -134,16 +141,21 @@ export function ActiveWorkoutPage({
               onAddWeight={() => workout.addWeight(exercise.id, 2.5)}
               onReset={() => workout.resetExercise(exercise)}
               statusLabel={workout.sourceLabels[exercise.id]}
-              onExerciseNoteChange={(notes) => {
-                setActiveExerciseId(exercise.id);
-                workout.updateExerciseNote(exercise.id, notes);
-              }}
             />
           );
         })}
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-800 bg-zinc-950/95 p-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur md:absolute">
-        <div className="mx-auto max-w-md">
+      <section className="space-y-3 px-4 pb-6">
+        <label className="block rounded-lg border border-zinc-800 bg-zinc-900/82 p-3">
+          <span className="mb-2 block text-sm font-black text-zinc-100">Training notitie</span>
+          <textarea
+            value={workoutNote}
+            onChange={(event) => setWorkoutNote(event.target.value)}
+            className="min-h-24 w-full resize-none rounded-md border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-100 outline-none focus:border-emerald-400"
+            placeholder="Bijv. moe, elleboog gevoelig, meer rust nodig..."
+          />
+        </label>
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/82 p-4">
           {confirmIncomplete && (
             <div className="mb-3 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
               Nog {incompleteSets} sets open. Tik nogmaals op voltooien om toch af te ronden.
@@ -172,10 +184,23 @@ export function ActiveWorkoutPage({
             </Button>
           </div>
         </div>
+      </section>
+      <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] z-30 px-3 md:absolute">
+        <div className="mx-auto max-w-md">
+          <RestTimer
+            timer={timer.timer}
+            manualSeconds={activeExercise?.restSeconds || 120}
+            onStartDefault={startManualTimer}
+            onPause={timer.pause}
+            onResume={timer.resume}
+            onAdjust={timer.adjust}
+            onStop={stopTimer}
+          />
+        </div>
       </div>
       {showCompletion && (
         <CompletionModal
-          initialValue={recoveryDraft}
+          initialValue={{ ...(recoveryDraft || {}), notes: recoveryDraft?.notes || workoutNote }}
           onChange={setRecoveryDraft}
           onClose={() => setShowCompletion(false)}
           onComplete={finish}

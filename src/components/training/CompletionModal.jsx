@@ -83,7 +83,7 @@ export function CompletionModal({ initialValue, onChange, onClose, onComplete })
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/70 md:absolute">
-      <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-lg border-t border-zinc-800 bg-zinc-950 p-4 shadow-2xl">
+      <div className="safe-bottom-sheet max-h-[92dvh] w-full overflow-y-auto rounded-t-lg border-t border-zinc-800 bg-zinc-950 p-4 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-black text-zinc-50">Training afronden</h2>
@@ -104,7 +104,7 @@ export function CompletionModal({ initialValue, onChange, onClose, onComplete })
                     type="button"
                     onClick={() => update({ [field.key]: value })}
                     className={[
-                      'min-h-12 rounded-md text-sm font-bold transition',
+                      'min-h-12 rounded-md text-sm font-bold transition active:scale-[0.99]',
                       form[field.key] === value ? 'bg-emerald-400 text-zinc-950' : 'bg-zinc-900 text-zinc-300',
                     ].join(' ')}
                   >

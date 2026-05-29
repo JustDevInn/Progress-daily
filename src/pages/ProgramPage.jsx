@@ -68,7 +68,7 @@ export function ProgramPage({
   );
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="app-page min-h-dvh">
       <header className="px-4 pb-5 pt-6">
         <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">Beheer</p>
         <h1 className="mt-2 text-3xl font-black text-zinc-50">Schema</h1>

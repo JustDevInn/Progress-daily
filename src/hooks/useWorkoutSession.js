@@ -18,7 +18,7 @@ function defaultSets(exercise) {
       setNumber: set.setNumber || index + 1,
       weight: set.weight ?? (exercise.modality === 'strength' ? '' : 0),
       reps: set.reps ?? (['timed', 'carry'].includes(exercise.modality) ? 0 : exercise.targetRepMin),
-      rir: set.rir ?? exercise.targetRirMax,
+      rir: set.rir ?? 2,
       ...(set.durationMinutes !== undefined ? { durationMinutes: set.durationMinutes } : {}),
       ...(set.distanceMeters !== undefined ? { distanceMeters: set.distanceMeters } : {}),
       notes: set.notes || '',
@@ -30,7 +30,7 @@ function defaultSets(exercise) {
     setNumber: index + 1,
     weight: exercise.modality === 'strength' ? '' : 0,
     reps: ['timed', 'carry'].includes(exercise.modality) ? 0 : exercise.targetRepMin,
-    rir: exercise.targetRirMax,
+    rir: 2,
     ...(exercise.modality === 'timed'
       ? { durationMinutes: exercise.targetDurationMinutes || 0 }
       : {}),
@@ -48,7 +48,7 @@ function previousSets(previous, exercise) {
     setNumber: index + 1,
     weight: set.weight === '' || set.weight === null || set.weight === undefined ? '' : Number(set.weight || 0),
     reps: Number(set.reps || (['timed', 'carry'].includes(exercise.modality) ? 0 : exercise.targetRepMin)),
-    rir: Number(set.rir ?? exercise.targetRirMax),
+    rir: Number(set.rir ?? 2),
     ...(set.durationMinutes !== undefined ? { durationMinutes: Number(set.durationMinutes || 0) } : {}),
     ...(set.distanceMeters !== undefined ? { distanceMeters: Number(set.distanceMeters || 0) } : {}),
     notes: set.notes || '',

@@ -87,6 +87,12 @@ export default function App() {
     };
   }, [auth.authLoading, auth.localOnlyMode, auth.user, serviceInfo]);
 
+  useEffect(() => {
+    if (!['saved', 'local'].includes(saveState)) return undefined;
+    const timeout = window.setTimeout(() => setSaveState('idle'), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [saveState]);
+
   async function saveWithFallback(action) {
     setSaveState('saving');
     setDataError('');
@@ -94,8 +100,8 @@ export default function App() {
       await action(serviceInfo.service);
       setSaveState('saved');
     } catch {
-      setDataError('Opslaan naar cloud mislukt. Lokale backup blijft beschikbaar.');
-      setSaveState('failed');
+      setDataError('Cloud opslaan mislukt. Je wijziging staat lokaal op dit apparaat.');
+      setSaveState('local');
     }
   }
 
@@ -273,7 +279,13 @@ export default function App() {
 
   if (activeProgram) {
     return (
-      <AppLayout activeTab={activeTab} onTabChange={setActiveTab} hideNav>
+      <AppLayout
+        activeTab={activeTab}
+        onTabChange={(nextTab) => {
+          setActiveProgram(null);
+          setActiveTab(nextTab);
+        }}
+      >
         <ActiveWorkoutPage
           program={activeProgram}
           sessions={allSessions}
@@ -308,6 +320,7 @@ export default function App() {
           onResumeWorkout={resumeActiveWorkout}
           onDiscardWorkout={resetActiveWorkout}
           completedSession={completedSession}
+          saveState={saveState}
         />
       )}
       {activeTab === 'progress' && (
@@ -342,7 +355,7 @@ export default function App() {
 function Splash({ text }) {
   return (
     <AppLayout activeTab="training" onTabChange={() => {}} hideNav>
-      <div className="flex min-h-screen items-center justify-center px-4 text-center">
+      <div className="flex min-h-dvh items-center justify-center px-4 text-center">
         <p className="text-sm font-bold text-zinc-400">{text}</p>
       </div>
     </AppLayout>
@@ -350,13 +363,19 @@ function Splash({ text }) {
 }
 
 function StatusBar({ mode, user, saveState, error, onLogout, onLogin }) {
+  const saveLabel = {
+    saving: 'Opslaan...',
+    saved: 'Opgeslagen',
+    local: 'Offline/lokaal opgeslagen',
+  }[saveState];
+
   return (
     <div className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 px-4 py-2 backdrop-blur">
       <div className="flex items-center justify-between gap-3 text-xs">
         <div className="min-w-0">
           <p className="truncate font-bold text-zinc-300">
             {mode === 'firestore' ? user?.email : 'Lokale modus'}
-            {saveState === 'saving' ? ' · opslaan...' : saveState === 'failed' ? ' · opslaan mislukt' : ''}
+            {saveLabel ? ` · ${saveLabel}` : ''}
           </p>
           {error && <p className="mt-1 text-amber-200">{error}</p>}
         </div>

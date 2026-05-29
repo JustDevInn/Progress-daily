@@ -1,5 +1,5 @@
 import { Minus, Save, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, isSameMonth, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useEffect, useMemo, useState } from 'react';
 import { ExerciseChart } from '../components/progress/ExerciseChart';
@@ -10,7 +10,9 @@ import { Card } from '../components/ui/Card';
 import {
   buildExerciseHistory,
   compareLatest,
+  completedSessions,
   formatSetPerformance,
+  byCompletedDesc,
 } from '../utils/calculations';
 import { formatShortDate } from '../utils/date';
 
@@ -18,7 +20,6 @@ export function ProgressPage({ programs, sessions, onUpdateSession, onDeleteSess
   const [exerciseId, setExerciseId] = useState('all');
   const [programId, setProgramId] = useState('all');
   const [metric, setMetric] = useState('weight');
-  const [showIncomplete, setShowIncomplete] = useState(false);
   const exercises = useMemo(() => {
     const map = new Map();
     programs
@@ -26,25 +27,23 @@ export function ProgressPage({ programs, sessions, onUpdateSession, onDeleteSess
       .forEach((program) => program.exercises.forEach((exercise) => map.set(exercise.id, exercise)));
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [programs, programId]);
-  const allHistory = useMemo(
-    () => buildExerciseHistory(sessions, exerciseId, programId, programs),
-    [sessions, exerciseId, programId, programs],
-  );
-  const hiddenIncompleteCount = new Set(allHistory.filter((row) => row.incomplete).map((row) => row.sessionId)).size;
-  const history = showIncomplete ? allHistory : allHistory.filter((row) => !row.incomplete);
-  const comparison = compareLatest(history.filter((row) => row.totalSets > 0));
   const selectedExercise = exercises.find((exercise) => exercise.id === exerciseId);
+  const hasSelectedExercise = exerciseId !== 'all' && Boolean(selectedExercise);
+  const history = useMemo(
+    () => (hasSelectedExercise ? buildExerciseHistory(sessions, exerciseId, programId, programs) : []),
+    [hasSelectedExercise, sessions, exerciseId, programId, programs],
+  );
+  const validHistory = hasSelectedExercise ? history.filter(hasExerciseMeasurement) : [];
+  const comparison = compareLatest(validHistory.filter(hasComparisonData));
   const currentMetric = {
     weight: { title: 'Gewicht', unit: 'kg', key: 'weight' },
     reps: { title: 'Reps', unit: 'totaal', key: 'reps' },
     effort: { title: 'Inspanning', unit: '%', key: 'effort' },
     oneRm: { title: '1RM', unit: 'kg', key: 'oneRm' },
   }[metric];
-  const chartData = history.filter((row) => {
-    if (metric === 'effort') return row.effort !== null && row.effort !== undefined;
-    return metric === 'reps' ? row.reps > 0 : Number(row[currentMetric.key] || 0) > 0;
-  });
-  const latestValid = [...history].reverse().find((row) => row.totalSets > 0);
+  const chartData = validHistory.filter((row) => hasMetricData(row, metric));
+  const latestValid = [...validHistory].reverse()[0];
+  const overview = useMemo(() => buildOverview(sessions, programId), [sessions, programId]);
 
   useEffect(() => {
     if (exerciseId !== 'all' && !exercises.some((exercise) => exercise.id === exerciseId)) {
@@ -53,7 +52,7 @@ export function ProgressPage({ programs, sessions, onUpdateSession, onDeleteSess
   }, [exerciseId, exercises]);
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="app-page min-h-dvh">
       <header className="px-4 pb-5 pt-6">
         <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">Analyse</p>
         <h1 className="mt-2 text-3xl font-black text-zinc-50">Progressie</h1>
@@ -73,25 +72,15 @@ export function ProgressPage({ programs, sessions, onUpdateSession, onDeleteSess
           />
         </Card>
 
-        <Card className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold text-zinc-100">Toon onvolledige sessies</p>
-            <p className="mt-1 text-xs text-zinc-500">
-              {hiddenIncompleteCount ? `${hiddenIncompleteCount} onvolledige sessies verborgen` : 'Geen verborgen sessies'}
-            </p>
-          </div>
-          <input
-            type="checkbox"
-            checked={showIncomplete}
-            onChange={(event) => setShowIncomplete(event.target.checked)}
-            className="h-5 w-5 accent-emerald-400"
-          />
-        </Card>
-
-        {history.length ? (
+        {!hasSelectedExercise ? (
+          <InstructionState overview={overview} />
+        ) : (
           <>
+            <div>
+              <h2 className="text-2xl font-black text-zinc-50">{selectedExercise.name}</h2>
+            </div>
             <LatestValidCard row={latestValid} />
-            <ComparisonCard comparison={comparison} />
+            {comparison && <ComparisonCard comparison={comparison} />}
             <Card className="grid grid-cols-4 gap-2">
               {[
                 ['weight', 'Gewicht'],
@@ -114,31 +103,41 @@ export function ProgressPage({ programs, sessions, onUpdateSession, onDeleteSess
             </Card>
             {chartData.length >= 2 ? (
               <ExerciseChart
-                title={`${currentMetric.title} over tijd`}
+                title={`${selectedExercise.name} — ${currentMetric.title} over tijd`}
                 data={chartData}
                 dataKey={currentMetric.key}
                 unit={currentMetric.unit}
                 domain={metric === 'effort' ? [0, 100] : undefined}
               />
             ) : (
-              <TrendEmptyState row={chartData[0]} metric={metric} />
+              <TrendEmptyState row={chartData[0]} metric={metric} exerciseName={selectedExercise.name} />
             )}
-            <HistoryList
-              title={selectedExercise?.name || 'Oefening historie'}
-              history={history}
-              onUpdateSession={onUpdateSession}
-              onDeleteSession={onDeleteSession}
-            />
+            {history.length > 0 && (
+              <HistoryList
+                history={history}
+                onUpdateSession={onUpdateSession}
+                onDeleteSession={onDeleteSession}
+              />
+            )}
           </>
-        ) : (
-          <Card>
-            <p className="text-sm text-zinc-400">
-              {exerciseId === 'all' ? 'Nog geen data voor deze filter.' : 'Nog geen sessies voor deze oefening.'}
-            </p>
-          </Card>
         )}
       </div>
     </div>
+  );
+}
+
+function InstructionState({ overview }) {
+  return (
+    <Card>
+      <p className="font-bold text-zinc-100">Kies een oefening om progressie te bekijken.</p>
+      <p className="mt-2 text-sm leading-6 text-zinc-400">
+        Selecteer een oefening om je metingen, vergelijking en trendgrafiek door de tijd te zien.
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <MiniStat label="Deze maand" value={overview.monthCount} />
+        <MiniStat label="Laatste training" value={overview.latestDate} />
+      </div>
+    </Card>
   );
 }
 
@@ -146,29 +145,35 @@ function LatestValidCard({ row }) {
   if (!row) {
     return (
       <Card>
-        <p className="text-sm text-zinc-400">Nog geen geldige sessie voor deze selectie.</p>
+        <p className="text-sm text-zinc-400">Nog geen data voor deze oefening.</p>
       </Card>
     );
   }
 
   return (
     <Card>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Laatste geldige meting</p>
-      <h2 className="mt-2 text-xl font-black text-zinc-50">{formatSetPerformance(row.bestSet || row.heaviestSet, row.modality)}</h2>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Laatste meting</p>
+      <h2 className="mt-2 text-xl font-black text-zinc-50">{formatSetPerformance(displaySet(row), row.modality)}</h2>
       <p className="mt-1 text-sm text-zinc-400">
-        {formatDateTime(row)} · {formatEffort(row.effort)} · {row.totalSets} sets
+        {formatDateTime(row)}
+      </p>
+      <p className="mt-2 text-sm font-semibold text-zinc-200">
+        {row.totalSets} sets · {row.totalReps} reps · {formatEffort(row.effort)}
+      </p>
+      <p className="mt-1 text-xs text-zinc-500">
+        Volume {row.totalVolume}kg
       </p>
     </Card>
   );
 }
 
-function TrendEmptyState({ row, metric }) {
-  if (metric === 'effort' && !row) {
+function TrendEmptyState({ row, metric, exerciseName }) {
+  if (!row) {
     return (
       <Card>
-        <p className="font-bold text-zinc-100">Nog geen inspanningsdata voor deze oefening.</p>
+        <p className="font-bold text-zinc-100">Nog geen data voor deze oefening.</p>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
-          Vul RIR of MAX in tijdens je sets om dit te zien.
+          Log {exerciseName} met geldige {metricLabel(metric).toLowerCase()} om een grafiek op te bouwen.
         </p>
       </Card>
     );
@@ -176,16 +181,13 @@ function TrendEmptyState({ row, metric }) {
 
   return (
     <Card>
-      <p className="font-bold text-zinc-100">Nog niet genoeg meetpunten voor een trend.</p>
+      <p className="font-bold text-zinc-100">Nog één meting nodig voor een trend.</p>
       <p className="mt-2 text-sm leading-6 text-zinc-400">
-        {metric === 'effort'
-          ? 'Meer RIR-data nodig om inspanning over tijd te zien.'
-          : 'Log deze oefening nog 1 keer om progressie over tijd te zien.'}
+        Log deze oefening nog een keer met geldige {metricLabel(metric).toLowerCase()}.
       </p>
       {row && (
         <p className="mt-3 rounded-md bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
-          Laatste meting: {formatSetPerformance(row.bestSet || row.heaviestSet, row.modality)}
-          {metric === 'effort' ? `, ${formatEffort(row.effort)}` : `, volume ${row.totalVolume}kg`}
+          Laatste meting: {formatSetPerformance(displaySet(row), row.modality)}
         </p>
       )}
     </Card>
@@ -214,13 +216,13 @@ function ComparisonCard({ comparison }) {
         <TrendBadge label={comparison.reps.label} />
       </div>
       <div className="grid gap-2 text-sm">
-        <MetricRow label="Reps" value={formatDiff(comparison.reps.diff, '')} trend={comparison.reps.label} />
         <div className="rounded-md bg-zinc-950 px-3 py-2">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">Best set</p>
           <p className="mt-1 text-zinc-200">
             {comparison.bestSet.from} → {comparison.bestSet.to}
           </p>
         </div>
+        <MetricRow label="Reps" value={formatDiff(comparison.reps.diff, '')} trend={comparison.reps.label} />
         <EffortMetricRow effort={comparison.effort} />
         <MetricRow label="e1RM" value={formatDiff(comparison.oneRm.diff, 'kg')} trend={comparison.oneRm.label} />
       </div>
@@ -262,32 +264,34 @@ function TrendBadge({ label }) {
   );
 }
 
-function HistoryList({ title, history, onUpdateSession, onDeleteSession }) {
+function HistoryList({ history, onUpdateSession, onDeleteSession }) {
   const [editingRowId, setEditingRowId] = useState(null);
 
   return (
     <Card className="space-y-3">
-      <h2 className="text-lg font-black text-zinc-50">{title}</h2>
-      <div className="space-y-3">
-        {[...history].sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)).map((row) => (
-          <HistoryRow
-            key={row.id}
-            row={row}
-            editing={editingRowId === row.id}
-            onEdit={() => setEditingRowId(row.id)}
-            onCancelEdit={() => setEditingRowId(null)}
-            onSave={(session) => {
-              onUpdateSession(session);
-              setEditingRowId(null);
-            }}
-            onDelete={() => {
-              if (window.confirm('Weet je zeker dat je deze volledige training wilt verwijderen?')) {
-                onDeleteSession(row.sessionId);
-              }
-            }}
-          />
-        ))}
-      </div>
+      <details>
+        <summary className="cursor-pointer list-none text-lg font-black text-zinc-50">Bekijk logs</summary>
+        <div className="mt-3 space-y-3">
+          {[...history].sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)).map((row) => (
+            <HistoryRow
+              key={row.id}
+              row={row}
+              editing={editingRowId === row.id}
+              onEdit={() => setEditingRowId(row.id)}
+              onCancelEdit={() => setEditingRowId(null)}
+              onSave={(session) => {
+                onUpdateSession(session);
+                setEditingRowId(null);
+              }}
+              onDelete={() => {
+                if (window.confirm('Weet je zeker dat je deze volledige training wilt verwijderen?')) {
+                  onDeleteSession(row.sessionId);
+                }
+              }}
+            />
+          ))}
+        </div>
+      </details>
     </Card>
   );
 }
@@ -317,7 +321,7 @@ function HistoryRow({ row, editing, onEdit, onCancelEdit, onSave, onDelete }) {
         <div className="mt-3 grid gap-2 text-sm">
           <p className="text-zinc-300">
             <span className="text-zinc-500">Best set: </span>
-            {formatSetPerformance(row.bestSet || row.heaviestSet, row.modality)}
+            {formatSetPerformance(displaySet(row), row.modality)}
           </p>
           <div className="grid grid-cols-3 gap-2">
             <MiniStat label="Sets" value={row.totalSets} />
@@ -503,6 +507,72 @@ function EditInput({ label, value, onChange, decimal = false }) {
       />
     </label>
   );
+}
+
+function hasExerciseMeasurement(row) {
+  return Boolean(
+    row &&
+      row.totalSets > 0 &&
+      (
+        row.totalReps > 0 ||
+        row.durationMinutes > 0 ||
+        row.distanceMeters > 0 ||
+        row.bestSet ||
+        row.heaviestSet ||
+        (row.effort !== null && row.effort !== undefined)
+      ),
+  );
+}
+
+function hasMetricData(row, metric) {
+  if (!row) return false;
+  if (metric === 'weight') return row.modality === 'strength' && Number(row.weight || 0) > 0;
+  if (metric === 'reps') return Number(row.reps || row.totalReps || 0) > 0;
+  if (metric === 'effort') return row.effort !== null && row.effort !== undefined;
+  if (metric === 'oneRm') return Number(row.oneRm || 0) > 0;
+  return false;
+}
+
+function hasComparisonData(row) {
+  return Boolean(
+    row &&
+      (
+        row.bestSet ||
+        row.heaviestSet ||
+        row.totalReps > 0 ||
+        row.bestOneRm > 0 ||
+        (row.effort !== null && row.effort !== undefined)
+      ),
+  );
+}
+
+function displaySet(row) {
+  return row?.bestSet || row?.heaviestSet || row?.rawExercise?.sets?.find((set) => set.completed) || null;
+}
+
+function metricLabel(metric) {
+  return {
+    weight: 'Gewicht',
+    reps: 'Reps',
+    effort: 'Inspanning',
+    oneRm: '1RM',
+  }[metric] || 'data';
+}
+
+function buildOverview(sessions, programId) {
+  const done = completedSessions(sessions)
+    .filter((session) => programId === 'all' || session.programId === programId);
+  const now = new Date();
+  const monthCount = done.filter((session) => {
+    if (!session.date) return false;
+    return isSameMonth(parseISO(session.date), now);
+  }).length;
+  const latest = [...done].sort(byCompletedDesc)[0];
+
+  return {
+    monthCount,
+    latestDate: latest ? formatShortDate(latest.date) : '-',
+  };
 }
 
 function MiniStat({ label, value }) {

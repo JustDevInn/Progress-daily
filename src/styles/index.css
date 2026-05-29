@@ -7,19 +7,28 @@
     sans-serif;
   background: #07090d;
   color: #f6f7fb;
+  -webkit-text-size-adjust: 100%;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: #07090d;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background:
     radial-gradient(circle at top left, rgba(41, 163, 112, 0.16), transparent 32rem),
     linear-gradient(180deg, #090b10 0%, #07090d 48%, #050609 100%);
+  overscroll-behavior-y: none;
 }
 
 button,
@@ -31,6 +40,46 @@ select {
 
 button {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+
+input,
+textarea,
+select {
+  min-height: 44px;
+  font-size: 16px;
+}
+
+summary,
+.tap-card {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tap-card input,
+.tap-card textarea,
+.tap-card select {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.app-page {
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+}
+
+.workout-page {
+  padding-bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
+}
+
+.safe-bottom-sheet {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 1rem);
 }
 
 ::-webkit-scrollbar {

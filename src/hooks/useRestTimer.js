@@ -48,7 +48,17 @@ export function useRestTimer(initialTimer = null, vibrationEnabled = false) {
   }
 
   function resume() {
-    setTimer((current) => ({ ...current, running: current.secondsLeft > 0, finished: false }));
+    setTimer((current) => {
+      if (current.finished && current.totalSeconds > 0) {
+        return {
+          ...current,
+          secondsLeft: current.totalSeconds,
+          running: true,
+          finished: false,
+        };
+      }
+      return { ...current, running: current.secondsLeft > 0, finished: false };
+    });
   }
 
   function reset() {

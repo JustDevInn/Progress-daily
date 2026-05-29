@@ -11,11 +11,12 @@ export function TrainingPage({
   onResumeWorkout,
   onDiscardWorkout,
   completedSession,
+  saveState,
 }) {
   const draftProgram = programs.find((program) => program.id === activeWorkoutDraft?.programId);
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="app-page min-h-dvh">
       <header className="px-4 pb-5 pt-6">
         <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">DailyProgress</p>
         <h1 className="mt-2 text-3xl font-black text-zinc-50">Training</h1>
@@ -26,7 +27,9 @@ export function TrainingPage({
             <CheckCircle2 className="shrink-0 text-emerald-300" size={24} />
             <div>
               <p className="font-bold text-emerald-100">{completedSession.programName} opgeslagen</p>
-              <p className="text-sm text-emerald-200/75">{completedSession.exercises.length} oefeningen gelogd</p>
+              <p className="text-sm text-emerald-200/75">
+                {sessionSaveText(saveState, completedSession.exercises.length)}
+              </p>
             </div>
           </Card>
         )}
@@ -69,4 +72,11 @@ export function TrainingPage({
       </div>
     </div>
   );
+}
+
+function sessionSaveText(saveState, exerciseCount) {
+  if (saveState === 'saving') return 'Opslaan... lokale backup is al bijgewerkt';
+  if (saveState === 'local') return 'Offline/lokaal opgeslagen';
+  if (saveState === 'saved') return 'Opgeslagen';
+  return `${exerciseCount} oefeningen gelogd`;
 }

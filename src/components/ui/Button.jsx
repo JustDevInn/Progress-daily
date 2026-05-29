@@ -24,7 +24,7 @@ export function Button({
     <button
       type={type}
       className={[
-        'inline-flex items-center justify-center gap-2 rounded-md font-semibold transition disabled:cursor-not-allowed disabled:opacity-45',
+        'inline-flex touch-manipulation select-none items-center justify-center gap-2 rounded-md font-semibold transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100',
         variants[variant],
         sizes[size],
         className,
